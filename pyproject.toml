@@ -1,0 +1,21 @@
+
+[project]
+name = "gpu-data-accelerator"
+version = "0.1.0"
+description = "A quick demo of GPU-accelerated data processing using RAPIDS."
+authors = [
+    {name = "Dominick", email = "dominick@nextvaldata.com"},
+]
+requires-python = ">=3.10"
+
+# THIS SECTION MUST BE PRESENT AND CORRECTLY SPELLED
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26.0",
+    "kaggle>=1.5.12", 
+    "jupyter>=1.0",
+    "matplotlib>=3.5",
+    "cudf-cu12>=25.0.0",
+    "cuml-cu12>=25.0.0", 
+    "dask-cudf-cu12>=25.0.0",
+]

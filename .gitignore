@@ -1,0 +1,22 @@
+# Virtual Environment
+.venv/
+venv/
+.env
+
+# Python compiled files
+__pycache__/
+*.pyc
+
+# Data files (DO NOT UPLOAD THE LARGE DATASET)
+data/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Kaggle API key
+.kaggle/
+
+# Build tools
+/dist
+/build
