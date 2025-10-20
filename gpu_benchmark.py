@@ -6,128 +6,124 @@ import cupy as cp
 
 # --- Configuration ---
 DATA_FILE = './data/merged_open_payment.csv'
-# Replace this with the actual file path you found in step 1.
+
+# --- 0. Pre-Load the Full Dataset (using Pandas) ---
+# Load the dataset once using the robust Pandas reader into CPU RAM.
+print(f"Loading full dataset into CPU memory using Pandas...")
+try:
+    # Use low_memory=False to help Pandas infer types correctly on large files
+    FULL_PANDAS_DF = pd.read_csv(DATA_FILE, dtype={'zip_code': 'str'}, low_memory=False)
+    print(f"Dataset loaded successfully. Total rows: {len(FULL_PANDAS_DF):,}")
+except Exception as e:
+    print(f"FATAL ERROR during Pandas load: {e}")
+    exit()
 
 # --- 1. Define the Heavy Workload Function ---
-def run_analytics(df_library, label, iterations=1):
+# This function measures pure processing time, using the DataFrame already loaded into memory.
+def run_analytics(df_library, label, base_df=None):
     """
-    Performs a heavy data cleaning and aggregation task.
-    Operations: Filter, Type Conversion, Groupby-Aggregate, Sort.
+    Performs a heavy data cleaning and aggregation task designed to challenge the CPU.
+    It takes a pre-loaded DataFrame (base_df) or loads a copy of the global Pandas DF.
     """
     print(f"\n--- Running: {label} ({df_library.__name__}) ---")
     
-    total_time = 0.0
+    start_time = time.time()
     
-    for i in range(iterations):
-        start_time = time.time()
-        
-        # 1. READ DATA (I/O is often a huge bottleneck)
-        if df_library.__name__ == 'cudf':
-            # For GPU: Use a smaller sample to avoid memory issues
-            # Read with pandas first, sample, then convert to cudf
-            import pandas as pd
-            
-            print(f"  Reading and sampling data for GPU processing...")
-            # Read in chunks with pandas and sample
-            sample_size = 2000000  # 2M rows sample
-            total_rows = 0
-            sampled_data = []
-            
-            for chunk in pd.read_csv(DATA_FILE, chunksize=1000000, dtype={'zip_code': 'str'}):
-                total_rows += len(chunk)
-                # Take a proportional sample from each chunk
-                sample_frac = min(1.0, sample_size / total_rows)
-                if sample_frac < 1.0:
-                    chunk_sample = chunk.sample(frac=sample_frac)
-                else:
-                    chunk_sample = chunk
-                sampled_data.append(chunk_sample)
-                
-                # Stop if we have enough data
-                if sum(len(d) for d in sampled_data) >= sample_size:
-                    break
-            
-            # Combine samples and convert to cuDF
-            if sampled_data:
-                pandas_df = pd.concat(sampled_data, ignore_index=True)
-                df = df_library.from_pandas(pandas_df)
-                del pandas_df  # Free memory
-            else:
-                df = df_library.DataFrame()
-                
-        else:
-            # For CPU: Read full dataset
-            df = df_library.read_csv(DATA_FILE, dtype={'zip_code': 'str'}, low_memory=False)
-        
-        # 2. FILTERING (Select a subset of high-value payments)
-        df = df[df['payment_amount'] > 1000]
-        
-        # 3. GROUPBY AGGREGATION (The most GPU-intensive step)
-        # Calculate total payments and average payment for each state and nature type.
-        if len(df) > 0:
-            results_df = df.groupby(['address_state', 'payment_nature']) \
-                           .agg({
-                               'payment_amount': ['sum', 'mean', 'count']
-                           })
-            
-            # 4. SORTING (Final, heavy data rearrangement)
-            results_df = results_df.sort_values(
-                ('payment_amount', 'sum'), 
-                ascending=False
-            )
-        else:
-            results_df = df_library.DataFrame()  # Empty results
-
-        end_time = time.time()
-        elapsed = end_time - start_time
-        total_time += elapsed
-        
-        print(f"  Iteration {i+1}: {elapsed:.4f} seconds, Filtered rows: {len(df):,}")
-        
-        # Clean up the large dataframe to free memory (more important for GPU)
-        del df
-        del results_df
-        if df_library.__name__ == 'cudf':
-            cp.cuda.runtime.deviceSynchronize() # Ensure all GPU operations are complete
-
-    avg_time = total_time / iterations
-    
-    # Get total row count for reporting
-    if df_library.__name__ == 'cudf':
-        total_rows = sample_size  # Report the sample size used
-        print(f"Total rows processed (GPU sample): {total_rows:,}")
+    # 1. DATA PREPARATION: Get the DataFrame copy
+    if base_df is not None:
+        # For GPU runs: Use the pre-copied GPU DataFrame
+        df = base_df.copy() 
     else:
-        sample_df = df_library.read_csv(DATA_FILE, dtype={'zip_code': 'str'}, low_memory=False)
-        total_rows = len(sample_df)
-        del sample_df
-        print(f"Total rows processed (full dataset): {total_rows:,}")
+        # For CPU run: Use a copy of the CPU Pandas DataFrame
+        global FULL_PANDAS_DF
+        df = FULL_PANDAS_DF.copy()
+        
+    total_rows = len(df)
     
-    print(f"Final Average Time ({label}): {avg_time:.4f} seconds")
-    return avg_time
+    # --- HIGH-PAIN STRING PROCESSING (BIGGEST GPU ADVANTAGE) ---
+    # FIX: Explicitly set regex=False to satisfy cuDF and enable case=False
+    df['is_research'] = df['payment_nature'].str.contains('Research', case=False, regex=False)
+    
+    # 2. FILTERING 
+    df = df[df['payment_amount'] > 1000]
+    
+    # 3. COMPLEX MULTI-KEY GROUPBY AGGREGATION (GPU Advantage)
+    if len(df) > 0:
+        results_df = df.groupby(['address_state', 'payment_nature', 'is_research']) \
+                         .agg({
+                             'payment_amount': ['sum', 'mean'],
+                             'payment_id': 'count' # Use 'payment_id' as the unique row counter
+                         })
+        
+        # 4. SORTING 
+        final_agg = results_df.sort_values(
+            ('payment_amount', 'sum'), 
+            ascending=False
+        )
+    else:
+        final_agg = df_library.DataFrame()
+        
+    end_time = time.time()
+    elapsed = end_time - start_time
+    
+    # Clean up (Essential for GPU memory management)
+    del df
+    del results_df
+    del final_agg
+    if df_library.__name__ == 'cudf':
+        # Ensure GPU memory is fully released and synchronized
+        cp.cuda.runtime.deviceSynchronize() 
+        
+    print(f"  Processed rows: {total_rows:,}, Elapsed Time: {elapsed:.4f} seconds")
+    return elapsed
 
-# --- 2. Benchmark Execution ---
+# ----------------------------------------------------------------------------------
 
-# Ensure cuDF is ready for GPU work
+# Run 3 iterations for averaging the GPU time (removes startup noise)
+ITERATIONS = 3
+cpu_times = []
+gpu_times = []
+
+# --- 2. Benchmark Execution (Actual Timing Starts Here) ---
+
+# Ensure cuDF/CUDA is ready
 cp.cuda.runtime.deviceSynchronize() 
 
 # --- A. CPU Benchmark (Standard Pandas) ---
-# Run 1 time for the demo to show the initial lag/time
-cpu_time = run_analytics(pd, "CPU (Pandas)", iterations=1)
+# Call the CPU function without the 'base_df' argument
+print("="*60)
+cpu_time = run_analytics(pd, "CPU (Pandas - Full Run)")
+cpu_times.append(cpu_time)
 
-# --- B. GPU Benchmark (cuDF) ---
-# Note: cuDF is imported here as 'cudf'
-# For the GPU test, we might run it 3 times and average the time, 
-# as the first run often includes some JIT compilation/initialization.
-gpu_time = run_analytics(cudf, "GPU (cuDF)", iterations=3)
+# --- B. GPU Preparation ---
 
-
-# --- 3. Print Results ---
-speedup = cpu_time / gpu_time
 print("\n" + "="*60)
-print(f"🔥 GPU ACCELERATION DEMO RESULTS 🔥")
-print(f"CPU Time (Pandas - Full Dataset): {cpu_time:.4f} seconds")
-print(f"GPU Time (cuDF - 2M Sample)     : {gpu_time:.4f} seconds (Average of 3 runs)")
+print("GPU Preparation: Copying data from CPU RAM to 16GB VRAM...")
+GPU_DF_BASE = cudf.from_pandas(FULL_PANDAS_DF) 
+cp.cuda.runtime.deviceSynchronize()
+print("Copy complete. Starting GPU processing benchmarks.")
+
+
+print("GPU Warm-up run (JIT compilation)...")
+# Run the function once and discard the time
+run_analytics(cudf, "GPU Warmup", base_df=GPU_DF_BASE) 
+print("Warm-up complete. Starting timed runs.")
+
+
+# --- C. GPU Timed Runs ---
+for i in range(ITERATIONS):
+    # Pass the pre-copied GPU DataFrame to the function
+    gpu_time = run_analytics(cudf, f"GPU (cuDF) - Run {i+1}", base_df=GPU_DF_BASE)
+    gpu_times.append(gpu_time)
+
+# --- 3. Print Final Results ---
+avg_gpu_time = sum(gpu_times) / ITERATIONS
+speedup = cpu_times[0] / avg_gpu_time
+
+print("\n" + "="*60)
+print(f"🔥 GPU ACCELERATION DEMO RESULTS (Averaged over {ITERATIONS} runs) 🔥")
+print("Note: The memory copy time is excluded to benchmark pure processing speed.")
+print(f"CPU Processing Time (Pandas): {cpu_times[0]:.4f} seconds")
+print(f"GPU Processing Time (cuDF)  : {avg_gpu_time:.4f} seconds")
 print(f"🚀 GPU SPEEDUP: {speedup:.2f}x faster!")
-print("\nNote: GPU used a 2M row sample to avoid memory limits.")
-print("In production, you'd use multiple GPUs or streaming for full datasets.")
 print("="*60)
