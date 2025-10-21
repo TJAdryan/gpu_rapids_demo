@@ -100,8 +100,7 @@ uv run jupyter notebook
 
 ```
 gpu-data-accelerator/
-├── gpu_benchmark2.py        # Improved benchmark (pure computation timing)
-├── gpu_benchmark.py         # Original benchmark (includes I/O timing)
+├── gpu_benchmark.py        # Improved benchmark (pure computation timing)
 ├── get_kaggle_dataset.py    # Data download utility
 ├── test_cuda.ipynb         # GPU testing notebook
 ├── pyproject.toml          # Project dependencies
