@@ -1,6 +1,6 @@
 # GPU Data Accelerator
 
-A benchmarking project that compares CPU-based pandas operations with GPU-accelerated cuDF processing, revealing important insights about I/O vs computation bottlenecks in data processing workflows.
+A benchmarking project that compares CPU-based pandas operations with GPU-accelerated cuDF processing, revealing important insights about I/O vs computation bottlenecks in data processing workflows. This is very narrow example to illustrate the type of performance gain I could expect on some of the data jobs that run in my pipelines.  The examples at the nvidia project https://rapids.ai/ will give a better sense of the possibilities.
 
 ## Project Overview
 
