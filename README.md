@@ -4,11 +4,11 @@ A benchmarking project that compares CPU-based pandas operations with GPU-accele
 
 ## Project Overview
 
-This project benchmarks pandas vs cuDF performance on a large payment dataset (15+ million rows). The results revealed that for simple operations like filtering and basic aggregation, file I/O dominates processing time, making GPU acceleration benefits less apparent than expected.
+This project benchmarks pandas vs cuDF performance on a large payment dataset (15+ million rows). The results revealed that for simple operations like filtering and basic aggregation, file I/O dominates processing time, making GPU acceleration benefits less apparent than expected. Taking full advantage of the hardware requires altering the code to take full advantage of the GPU 
 
 ## Key Findings
 
-**Updated Benchmark Results (gpu_benchmark2.py):**
+**Updated Benchmark Results (gpu_benchmark.py):**
 
 **CPU Processing (Pure Computation):**
 - Dataset: 15.3 million rows (pre-loaded in memory)
@@ -17,15 +17,9 @@ This project benchmarks pandas vs cuDF performance on a large payment dataset (1
 - Throughput: 5.09 million rows/second
 
 **GPU Processing:**
-- Memory limitation: GPU runs out of memory during string operations on full dataset
-- Issue: String processing on 15M rows exceeds available GPU memory
-- Learning: GPU memory constraints are a real limitation for large text processing
-
-**Critical Insights:**
-- **Improved benchmark design**: Excludes I/O time, measures pure computation
-- **CPU is very capable**: 3 seconds to process 15M rows with complex operations
-- **GPU memory matters**: String operations require significant GPU memory
-- **Fair comparison achieved**: Same dataset size, same operations, isolated computation
+-The initial numbers were terrible, with the GPU appearing slower than our optimized 3-second CPU baseline.
+-The fix came down to proper architectural testing:Eliminating JIT Compilation Tax: Running a "warm-up" pass to prevent the first-run compilation time from skewing results.
+-Addressing Memory Copy Latency: Pre-loading data directly into VRAM outside the timer.By accounting for these prerequisites, the GPU's true parallel power was unleashed:                HardwareExecution TimeSpeed up .03 seconds.  71x improvemeent
 
 ## Features
 
