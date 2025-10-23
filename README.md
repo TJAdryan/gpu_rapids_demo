@@ -18,8 +18,9 @@ This project benchmarks pandas vs cuDF performance on a large payment dataset (1
 
 **GPU Processing:**
 -The initial numbers were terrible, with the GPU appearing slower than our optimized 3-second CPU baseline.
--The fix came down to proper architectural testing:Eliminating JIT Compilation Tax: Running a "warm-up" pass to prevent the first-run compilation time from skewing results.
--Addressing Memory Copy Latency: Pre-loading data directly into VRAM outside the timer.By accounting for these prerequisites, the GPU's true parallel power was unleashed:                HardwareExecution TimeSpeed up .03 seconds.  71x improvemeent
+-The fix came down to proper architectural testing:
+       Eliminating JIT Compilation Tax: Running a "warm-up" pass to prevent the first-run compilation time from skewing results.
+-Addressing Memory Copy Latency: Pre-loading data directly into VRAM outside the timer.By accounting for these prerequisites, the GPU's true parallel power was unleashed:                     HardwareExecution TimeSpeed up .03 seconds.  71x improvemeent
 
 ## Features
 
@@ -123,8 +124,8 @@ The updated performance test (gpu_benchmark2.py) includes computationally intens
 
 - **CPU**: Processes full dataset (15.3M rows) with 3.02 seconds of pure computation
 - **GPU**: Encounters memory limitations during string processing operations
-- **Challenge**: Text operations on large datasets require significant GPU memory
-- **Solution**: Production workflows would use chunking, streaming, or larger GPU memory
+- **Challenge**: Accounting for warm up operations and altering code for GPU optimized code
+- **Solution**: Workloads on GPU can provide significant advantages with updated code.  
 
 ### Dependencies
 
@@ -138,8 +139,8 @@ The updated performance test (gpu_benchmark2.py) includes computationally intens
 
 - **Improved benchmark design**: gpu_benchmark2.py eliminates I/O timing for fair comparison
 - **CPU performance**: 5.09 million rows/second for complex operations (string processing + aggregation)
-- **GPU memory constraint**: String operations on 15M rows exceed consumer GPU memory limits
-- **Real-world insight**: Memory management is often the limiting factor, not computation speed
+- **GPU memory constraint**: Code needs to be updated specififcally to take advantage of hardware
+- **Real-world insight**: 71x over CPU perfromance possible if code base updated when GPU hardware is available
 - **Benchmark evolution**: Shows importance of iterative improvement in performance analysis
 
 ## Lessons Learned
@@ -150,14 +151,6 @@ The updated performance test (gpu_benchmark2.py) includes computationally intens
 4. **String operations are memory-intensive**: Text processing requires significant GPU memory allocation
 5. **Fair comparison matters**: Identical datasets and isolated operations reveal true performance characteristics
 
-## When GPU Acceleration Makes Sense
-
-Based on this updated analysis, GPU acceleration is most beneficial for:
-- **Smaller datasets that fit in GPU memory** with complex mathematical operations
-- **Numerical computations** rather than text/string processing
-- **Iterative algorithms** where data remains in GPU memory between operations
-- **Specialized workloads** like machine learning, scientific computing, or computer vision
-- **Operations with high parallelism** that can fully utilize thousands of GPU cores
 
 ## Contributing
 
