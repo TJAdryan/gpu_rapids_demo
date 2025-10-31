@@ -7,6 +7,7 @@ A benchmarking project that compares CPU-based pandas operations with GPU-accele
 This project benchmarks pandas vs cuDF performance on a large payment dataset (15+ million rows). The results revealed that for simple operations like filtering and basic aggregation, file I/O dominates processing time, making GPU acceleration benefits less apparent than expected. Taking full advantage of the hardware requires altering the code to take full advantage of the GPU 
 
 ## Key Findings
+-There is a lot of compute that is not being utilized. Taking the time to see what resources you have on hand to improve your workflows is definitely a smart option.  NO MATTER HOW MUCH YOU WANT TO GO OUT AND BY THE LATEST HARDWARE.
 
 **Updated Benchmark Results (gpu_benchmark.py):**
 
@@ -15,6 +16,7 @@ This project benchmarks pandas vs cuDF performance on a large payment dataset (1
 - Processing time: 3.02 seconds (string operations + filtering + groupby + sorting)
 - Operations: String contains, filtering, multi-key groupby aggregation, sorting
 - Throughput: 5.09 million rows/second
+  
 
 **GPU Processing:**
 -The initial numbers were terrible, with the GPU appearing slower than our optimized 3-second CPU baseline.
